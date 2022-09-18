@@ -5,7 +5,7 @@ local Players = game:GetService("Players")
 
 --// References
 
-local GameParts = ReplicatedStorage.GameParts
+local GameParts = ReplicatedStorage.GameSetup.GameParts
 
 local GameUI = GameParts.UI
 
@@ -110,7 +110,7 @@ function GuiModule.FadeScreen(FadeTransparency: number, DisplayOrder: number, Fa
 
 	local FadeStartAction, FadeMiddleAction, FadeEndAction = table.unpack(Actions or {})
 
-	local Fade = script.Fade:Clone()
+	local Fade = GameUI.Fade:Clone()
 	Fade.Main.BackgroundTransparency = 1
 	Fade.DisplayOrder = DisplayOrder
 	Fade.Parent = PlayerGui
@@ -247,7 +247,18 @@ function GuiModule.CloseGuiByObject(OpenObject: Frame | ScreenGui)
 end
 
 function GuiModule.CreateTextNotification(Text: string, NotificationDuration: number)
-	local TextNotifications: ScreenGui = PlayerGui:WaitForChild("TextNotifications")
+	local TextNotifications: ScreenGui = PlayerGui:FindFirstChild("TextNotifications") or (function()
+		local TextNotificationsGui = Instance.new("ScreenGui", PlayerGui)
+		TextNotificationsGui.Name = "TextNotifications"
+		local List = Instance.new("Frame", TextNotificationsGui)
+		List.Name = "List"
+		List.Size = UDim2.new(.3, 0, .2, 0)
+		List.Position = UDim2.new(.5, 0, .02, 0)
+		List.AnchorPoint = Vector2.new(.5, 0)
+		List.BackgroundTransparency = 1
+		List.BorderSizePixel = 0
+		return TextNotificationsGui
+	end)()
 	
 	local function CreateNotification()
 		local NewNotification = GameUI.TextNotification:Clone()

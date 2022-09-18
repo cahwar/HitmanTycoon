@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 
 --// References
 
-local GameParts = ReplicatedStorage.GameParts
+local GameParts = ReplicatedStorage.GameSetup.GameParts
 
 --// Module
 

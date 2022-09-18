@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// References
 
-local AnimationsFolder = ReplicatedStorage.GameParts.Animations
+local AnimationsFolder = ReplicatedStorage.GameSetup.GameParts.Animations
 
 local Modules = ReplicatedStorage.Modules
 
