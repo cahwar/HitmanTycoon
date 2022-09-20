@@ -1,0 +1,81 @@
+-- // Services
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+
+-- // References
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
+
+-- // Settings
+
+local MIN_DISTANCE_TO_BUY_POINT = 15
+
+-- // Module
+
+local RoomBuyController = Knit.CreateController { Name = "RoomBuyController" }
+
+function RoomBuyController:init()
+    self.player = Players.LocalPlayer
+    self.character = self.player.Character or self.player.CharacterAdded:Wait()
+    
+    local playerGui = self.player:WaitForChild("PlayerGui")
+    self.billboardGui = playerGui:WaitForChild("BillboardGuis"):WaitForChild("BuyRoom")
+end
+
+
+function RoomBuyController:clearBillboardGui()
+
+end
+
+function RoomBuyController:hideBillboardGui()
+    if(self.billboardGui.Enabled == true) then
+        self.billboardGui.Enabled = false
+
+        
+    end
+
+    if(self.billboardGui.Adornee ~= nil) then self.billboardGui.Adornee = nil end
+    
+    self:clearBillboardGui()
+end
+
+function RoomBuyController:enableBillboardGui()
+    if(self.billboardGui.Enabled == false) then self.billboardGui.Enabled = true end
+    if(self.closestBuyPoint ~= nil) then self.billboardGui.Adornee = self.closestBuyPoint end
+end
+
+function RoomBuyController:launchHandler()
+    RunService.Heartbeat:Connect(function()
+        local temporaryBuyPoint: Instance, temporaryDistance: number = nil, nil
+
+        for _, buyPoint in pairs(CollectionService:GetTagged("RoomBuyPoint")) do
+            local distanceToCharacter = (self.character.PrimaryPart.Position - buyPoint.Position).Magnitude
+            if(distanceToCharacter <= MIN_DISTANCE_TO_BUY_POINT and (temporaryBuyPoint == nil or distanceToCharacter < temporaryDistance)) then
+                temporaryBuyPoint = buyPoint
+                temporaryDistance = distanceToCharacter
+            end
+        end
+
+        if(temporaryBuyPoint == nil and self.billboardGui.Enabled == true) then
+            self:hideBillboardGui(); return
+        end
+
+        if(temporaryBuyPoint ~= self.closestBuyPoint) then
+            self.closestBuyPoint = temporaryBuyPoint
+            self:enableBillboardGui()
+        end
+    end)
+end
+
+function RoomBuyController:KnitStart()
+    self:launchHandler()
+end
+
+function RoomBuyController:KnitInit()
+    self:init()
+end
+
+return RoomBuyController

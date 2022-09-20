@@ -1,5 +1,6 @@
 --// Services
 
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
@@ -17,6 +18,8 @@ local MethodsModule = require(GeneralLibraries.MethodsModule)
 local LuaExtensions = Modules.LuaExtensions
 local QueueClass = require(LuaExtensions.Queue)
 
+local Promise = require(ReplicatedStorage.Packages.Promise)
+
 local Player = Players.LocalPlayer
 local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
 
@@ -26,6 +29,7 @@ local Camera = workspace.CurrentCamera
 
 local OpenGuis = {}
 local NotificationsQueue = QueueClass.New()
+local OptionalPromptsQueue = QueueClass.New()
 
 --// Module
 
@@ -283,6 +287,9 @@ function GuiModule.CreateTextNotification(Text: string, NotificationDuration: nu
 	
 	NotificationsQueue:Enqueue({Action = CreateNotification})
 	
+	if NotificationsQueue.DequeueLaunched == true then return end
+	NotificationsQueue.DequeueLaunched = true
+
 	while #NotificationsQueue.Members > 0 do
 		_, TextNotificationsAmount = MethodsModule.FindAllObjectsByRequirement(TextNotifications.List:GetChildren(), {
 			{RequirementType = "Function", RequirementAction = function(Object) return Object.Name == "TextNotification" end}
@@ -299,6 +306,8 @@ function GuiModule.CreateTextNotification(Text: string, NotificationDuration: nu
 		end
 		
 		NotificationsQueue:Dequeue().Action()
+
+		if #NotificationsQueue.Members <= 0 then NotificationsQueue.DequeueLaunched = false end
 	end
 end
 
@@ -329,6 +338,55 @@ end
 function GuiModule.ClearVF(ViewportFrame: ViewportFrame)
 	local Model = ViewportFrame:FindFirstChildWhichIsA("Model") or ViewportFrame:FindFirstChildWhichIsA("MeshPart") or ViewportFrame:FindFirstChildWhichIsA("Part")
 	if Model and Model:GetAttribute("VF") then Model:Destroy() end
+end
+
+function GuiModule.ForceOptionalPrompt(promptText: string, enableAgreeOption: boolean, enableCancelOption: boolean, addToQueue: boolean)
+	local _, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
+		{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
+	})
+
+	local newPromise = Promise.new(function(resolve: () -> nil)
+		OptionalPromptsQueue:Enqueue({Action = function()
+			local newPrompt = GameUI.OptionalPrompt:Clone()
+			local promptInner = newPrompt.Main.Inner
+			
+			if(enableAgreeOption == false) then promptInner.Buttons.Agree.Visible = false end
+			if(enableCancelOption == false) then promptInner.Buttons.Cancel.Visible = false end
+	
+			promptInner.TextLabel.Text = promptText
+			
+			promptInner.Buttons.Agree.MouseButton1Click:Connect(function() resolve(true); newPrompt:Destroy() end)
+			promptInner.Buttons.Cancel.MouseButton1Click:Connect(function() resolve(false); newPrompt:Destroy() end)
+			
+			newPrompt.Parent = PlayerGui
+			GuiModule.PopUp(newPrompt.Main, newPrompt)
+		end})
+	end)
+
+	if(OptionalPromptsQueue.DequeueLaunched ~= true) then
+		OptionalPromptsQueue.DequeueLaunched = true
+		
+		while(#OptionalPromptsQueue.Members > 0) do
+			_, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
+				{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
+			})
+
+			if(promptsAmount > 0) then
+				repeat
+					_, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
+						{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
+					})
+					task.wait()
+				until promptsAmount <= 0
+			end
+
+			OptionalPromptsQueue:Dequeue().Action()
+
+			if(#OptionalPromptsQueue.Members <= 0) then OptionalPromptsQueue.DequeueLaunched = false end
+		end
+	end
+
+	return newPromise
 end
 
 return GuiModule

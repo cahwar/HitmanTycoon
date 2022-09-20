@@ -57,4 +57,25 @@ function QueueClass:FindMember(MemberName: string)
 	return false
 end
 
+function QueueClass:LaunchDequeProcess(Action: (Member: any?) -> nil)
+    if(self.DequeProcessEnabled == true or #self.Members <= 0) then return end
+    
+    self.DequeProcessEnabled = true
+
+    while(#self.Members > 0) do
+        if(self.DequeProcessEnabled == false) then break end
+
+        local Member = self:Dequeue()
+        Action(Member)
+
+        task.wait(Member.WaitTime or 0)
+    end
+    
+    self:StopDequeProcess()
+end
+
+function QueueClass:StopDequeProcess()
+    self.DequeProcessEnabled = false
+end
+
 return QueueClass
