@@ -286,29 +286,18 @@ function GuiModule.CreateTextNotification(Text: string, NotificationDuration: nu
 	})
 	
 	NotificationsQueue:Enqueue({Action = CreateNotification})
-	
-	if NotificationsQueue.DequeueLaunched == true then return end
-	NotificationsQueue.DequeueLaunched = true
+	NotificationsQueue:LaunchDequeProcess(
+		function(member)
+			member.Action()
+		end,
+		function()
+			_, TextNotificationsAmount = MethodsModule.FindAllObjectsByRequirement(TextNotifications.List:GetChildren(), {
+				{RequirementType = "Function", RequirementAction = function(Object) return Object.Name == "TextNotification" end}
+			})
 
-	while #NotificationsQueue.Members > 0 do
-		_, TextNotificationsAmount = MethodsModule.FindAllObjectsByRequirement(TextNotifications.List:GetChildren(), {
-			{RequirementType = "Function", RequirementAction = function(Object) return Object.Name == "TextNotification" end}
-		})
-		
-		if TextNotificationsAmount >= 3 then
-			repeat
-				_, TextNotificationsAmount = MethodsModule.FindAllObjectsByRequirement(TextNotifications.List:GetChildren(), {
-					{RequirementType = "Function", RequirementAction = function(Object) return Object.Name == "TextNotification" end}
-				})
-				
-				task.wait()
-			until TextNotificationsAmount < 3
+			if TextNotificationsAmount >= 3 then return false else return true end
 		end
-		
-		NotificationsQueue:Dequeue().Action()
-
-		if #NotificationsQueue.Members <= 0 then NotificationsQueue.DequeueLaunched = false end
-	end
+	)
 end
 
 function GuiModule.PutVFObject(ObjectModel: Model | MeshPart | Part, ViewportFrame: ViewportFrame)
@@ -341,52 +330,60 @@ function GuiModule.ClearVF(ViewportFrame: ViewportFrame)
 end
 
 function GuiModule.ForceOptionalPrompt(promptText: string, enableAgreeOption: boolean, enableCancelOption: boolean, addToQueue: boolean)
-	local _, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
-		{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
-	})
-
-	local newPromise = Promise.new(function(resolve: () -> nil)
-		OptionalPromptsQueue:Enqueue({Action = function()
-			local newPrompt = GameUI.OptionalPrompt:Clone()
-			local promptInner = newPrompt.Main.Inner
-			
-			if(enableAgreeOption == false) then promptInner.Buttons.Agree.Visible = false end
-			if(enableCancelOption == false) then promptInner.Buttons.Cancel.Visible = false end
+	local function closeOptionalPrompt(optionalPrompt: GuiObject, maid)
+		maid:Destroy()
+		local tween = GuiModule.PopClose(optionalPrompt.Main, optionalPrompt)
+		tween.Completed:Connect(function() optionalPrompt:Destroy() end)
+	end
 	
-			promptInner.TextLabel.Text = promptText
+	local optionalPromptPromise = Promise.new(function(resolve: () -> nil)
+		OptionalPromptsQueue:Enqueue({Action = function()
+			local promptGui = GameUI.OptionalPrompt:Clone()
+			local promptGuiInner = promptGui.Main.Inner
+			local promptGuiButtons = promptGuiInner.Buttons
+	
+			promptGui:SetAttribute("OptionalPrompt", true)
+
+			promptGuiButtons.Agree.Visible = false; promptGuiButtons.Cancel.Visible = false
+			promptGuiInner.TextLabel.Text = promptText
+	
+			local maid = require(ReplicatedStorage.Packages.Maid).new()
 			
-			promptInner.Buttons.Agree.MouseButton1Click:Connect(function() resolve(true); newPrompt:Destroy() end)
-			promptInner.Buttons.Cancel.MouseButton1Click:Connect(function() resolve(false); newPrompt:Destroy() end)
-			
-			newPrompt.Parent = PlayerGui
-			GuiModule.PopUp(newPrompt.Main, newPrompt)
+			if(enableAgreeOption) then
+				promptGuiButtons.Agree.Visible = true
+				maid:GiveTask(promptGuiButtons.Agree.MouseButton1Click:Connect(function()
+					closeOptionalPrompt(promptGui, maid)
+					resolve(true)
+				end))
+			end
+	
+			if(enableCancelOption) then
+				promptGuiButtons.Cancel.Visible = true
+				maid:GiveTask(promptGuiButtons.Cancel.MouseButton1Click:Connect(function()
+					closeOptionalPrompt(promptGui, maid)
+					resolve(false)
+				end))
+			end
+	
+			promptGui.Parent = PlayerGui
+			GuiModule.PopUp(promptGui.Main, promptGui)
 		end})
 	end)
 
-	if(OptionalPromptsQueue.DequeueLaunched ~= true) then
-		OptionalPromptsQueue.DequeueLaunched = true
-		
-		while(#OptionalPromptsQueue.Members > 0) do
-			_, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
+	OptionalPromptsQueue:LaunchDequeProcess(
+		function(member)
+			member.Action()
+		end,
+		function()
+			local _, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
 				{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
 			})
 
-			if(promptsAmount > 0) then
-				repeat
-					_, promptsAmount = MethodsModule.FindAllObjectsByRequirement(PlayerGui:GetDescendants(), {
-						{RequirementType = "Function", RequirementAction = function(object: Instance) return object:GetAttribute("OptionalPrompt") == true end}
-					})
-					task.wait()
-				until promptsAmount <= 0
-			end
-
-			OptionalPromptsQueue:Dequeue().Action()
-
-			if(#OptionalPromptsQueue.Members <= 0) then OptionalPromptsQueue.DequeueLaunched = false end
+			if promptsAmount > 0 then return false else return true end
 		end
-	end
+	)
 
-	return newPromise
+	return optionalPromptPromise
 end
 
 return GuiModule

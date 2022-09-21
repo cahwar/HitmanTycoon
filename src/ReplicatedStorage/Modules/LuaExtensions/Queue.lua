@@ -57,13 +57,16 @@ function QueueClass:FindMember(MemberName: string)
 	return false
 end
 
-function QueueClass:LaunchDequeProcess(Action: (Member: any?) -> nil)
+function QueueClass:LaunchDequeProcess(Action: (Member: any?) -> nil, CheckAction: () -> boolean)
     if(self.DequeProcessEnabled == true or #self.Members <= 0) then return end
     
     self.DequeProcessEnabled = true
 
     while(#self.Members > 0) do
         if(self.DequeProcessEnabled == false) then break end
+
+		local Success = CheckAction()
+		if not Success then repeat Success = CheckAction(); task.wait() until Success == true end
 
         local Member = self:Dequeue()
         Action(Member)
